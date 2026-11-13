@@ -1,0 +1,97 @@
+/// All legal completions of one nonogram line. Bit zero is the leftmost cell.
+/// With no completions, both masks are zero.
+pub struct Consensus { pub ways: usize, pub always_filled: usize, pub ever_filled: usize }
+
+impl Copy for Consensus {}
+
+fn low_bits(_ length: usize) -> usize {
+    if length == 0 { return 0 }
+    let high: usize = 1 << (length - 1)
+    high | (high - 1)
+}
+
+fn impossible() -> Consensus {
+    Consensus { ways: 0, always_filled: 0, ever_filled: 0 }
+}
+
+fn combine(_ left: Consensus, _ right: Consensus) -> Consensus {
+    if left.ways == 0 {
+        return right
+    }
+    if right.ways == 0 {
+        return left
+    }
+    Consensus {
+        ways: left.ways + right.ways,
+        always_filled: left.always_filled & right.always_filled,
+        ever_filled: left.ever_filled | right.ever_filled,
+    }
+}
+
+/// Supports lines up to 32 cells and 16 positive clues. The active clues are
+/// the first clue_count entries. The remaining entries are ignored.
+pub fn solve_line(
+    width: usize,
+    clues: [usize; 16],
+    clue_count: usize,
+    filled: usize,
+    empty: usize,
+) -> Consensus {
+    if width > 32 || clue_count > 16 {
+        return impossible()
+    }
+    let line_mask: usize = low_bits(width)
+    if (filled & empty) != 0 || (filled | empty) > line_mask {
+        return impossible()
+    }
+
+    // previous[end] describes exactly the first 'end' cells with one fewer run.
+    let none = impossible()
+    var previous = [none; 33]
+    previous[0] = Consensus { ways: 1, always_filled: 0, ever_filled: 0 }
+    for end in 1 .. (width + 1) {
+        if (filled & (1 << (end - 1))) == 0 {
+            previous[end] = previous[end - 1]
+        }
+    }
+    for group in 0 .. clue_count {
+        let length = clues[group]
+        if length == 0 || length > width {
+            return none
+        }
+        var current = [none; 33]
+        for end in 1 .. (width + 1) {
+            // A solution ending with an empty cell extends a shorter prefix.
+            if (filled & (1 << (end - 1))) == 0 {
+                current[end] = current[end - 1]
+            }
+            if end < length { continue }
+            let start = end - length
+            let run: usize = low_bits(length) << start
+            if (empty & run) != 0 {
+                continue
+            }
+
+            // Every run after the first consumes a mandatory empty separator.
+            var prefix_end = start
+            if group > 0 {
+                if start == 0 { continue }
+                prefix_end = start - 1
+                if (filled & (1 << prefix_end)) != 0 {
+                    continue
+                }
+            }
+            let prior = previous[prefix_end]
+            if prior.ways > 0 {
+                let with_run = Consensus {
+                    ways: prior.ways,
+                    always_filled: prior.always_filled | run,
+                    ever_filled: prior.ever_filled | run,
+                }
+                current[end] = combine(current[end], with_run)
+            }
+        }
+        previous = current
+    }
+    previous[width]
+}

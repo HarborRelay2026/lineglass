@@ -1,0 +1,134 @@
+use ingot::solve_line
+use ingot::reader::{LineQuery, LineReader}
+
+#[test]
+fn overlapping_run_forces_a_center() {
+    var clues: [usize; 16] = [0; 16]
+    clues[0] = 3
+    let result = solve_line(width: 5, clues: clues, clue_count: 1, filled: 0, empty: 0)
+    assert!(result.ways == 3)
+    assert!(result.always_filled == 4)
+    assert!(result.ever_filled == 31)
+}
+
+#[test]
+fn a_separator_cannot_be_filled() {
+    var clues: [usize; 16] = [0; 16]
+    clues[0] = 1
+    clues[1] = 1
+    let result = solve_line(width: 3, clues: clues, clue_count: 2, filled: 2, empty: 0)
+    assert!(result.ways == 0)
+}
+
+#[test]
+fn all_sixteen_runs_and_the_highest_bit_work() {
+    let clues: [usize; 16] = [1; 16]
+    let open = solve_line(
+        width: 32,
+        clues: clues,
+        clue_count: 16,
+        filled: 0,
+        empty: 0,
+    )
+    assert!(
+        open.ways == 17 && open.always_filled == 0 && open.ever_filled == 0xffffffff,
+    )
+    let edge = solve_line(
+        width: 32,
+        clues: clues,
+        clue_count: 16,
+        filled: 0,
+        empty: 1,
+    )
+    assert!(
+        edge.ways == 1 && edge.always_filled == 0xaaaaaaaa && edge.ever_filled == 0xaaaaaaaa,
+    )
+}
+
+#[test]
+fn full_width_and_many_possible_completions() {
+    var clues: [usize; 16] = [1; 16]
+    let loose = solve_line(
+        width: 32,
+        clues: clues,
+        clue_count: 8,
+        filled: 0,
+        empty: 0,
+    )
+    assert!(loose.ways == 1081575)
+    clues[0] = 32
+    let full = solve_line(
+        width: 32,
+        clues: clues,
+        clue_count: 1,
+        filled: 0,
+        empty: 0,
+    )
+    assert!(full.ways == 1 && full.always_filled == 0xffffffff)
+}
+
+#[test]
+fn empty_line_and_invalid_inputs() {
+    let zeros: [usize; 16] = [0; 16]
+    assert!(
+        solve_line(width: 0, clues: zeros, clue_count: 0, filled: 0, empty: 0).ways == 1,
+    )
+    assert!(
+        solve_line(
+                width: 32,
+                clues: zeros,
+                clue_count: 0,
+                filled: 0,
+                empty: 0,
+            ).ways == 1,
+    )
+    assert!(
+        solve_line(width: 3, clues: zeros, clue_count: 0, filled: 0, empty: 8).ways == 0,
+    )
+    assert!(
+        solve_line(width: 3, clues: zeros, clue_count: 1, filled: 0, empty: 0).ways == 0,
+    )
+    assert!(
+        solve_line(width: 4, clues: zeros, clue_count: 0, filled: 1, empty: 1).ways == 0,
+    )
+    assert!(
+        solve_line(
+                width: 33,
+                clues: zeros,
+                clue_count: 0,
+                filled: 0,
+                empty: 0,
+            ).ways == 0,
+    )
+    assert!(
+        solve_line(
+                width: 4,
+                clues: zeros,
+                clue_count: 17,
+                filled: 0,
+                empty: 0,
+            ).ways == 0,
+    )
+}
+
+#[event]
+struct ExampleResult { ways: u256, always_filled: u256, ever_filled: u256 }
+
+#[test]
+fn playable_example() uses (evm: mut Evm, log: mut Log) {
+    let reader = evm.create2<LineReader>(value: Wei::zero(), args: (), salt: 0)
+    var clues: [u8; 16] = [0; 16]
+    clues[0] = 3
+    let (ways, always, ever): (u256, u256, u256) = evm
+        .call(
+            addr: reader,
+            gas: 2000000,
+            value: Wei::zero(),
+            message: LineQuery::Analyze { width: 5, clues, clue_count: 1, filled: 0, empty: 1 },
+        )
+    // .???? with clue 3 admits .###. and ..###, so the hint is .?##?.
+    assert!(ways == 2 && always == 12 && ever == 30)
+    log.emit(
+        ExampleResult { ways, always_filled: always, ever_filled: ever },
+    )
+}

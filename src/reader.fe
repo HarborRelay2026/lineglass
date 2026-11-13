@@ -1,0 +1,30 @@
+use ingot::solve_line
+
+pub msg LineQuery {
+    #[selector = sol("analyze(uint8,uint8[16],uint8,uint32,uint32)")]
+    Analyze { width: u8, clues: [u8; 16], clue_count: u8, filled: u32, empty: u32 } -> (
+        u256,
+        u256,
+        u256,
+    ),
+}
+
+/// Stateless ABI adapter for a local EVM or a puzzle engine.
+pub contract LineReader {
+    recv LineQuery {
+        Analyze { width, clues, clue_count, filled, empty } -> (u256, u256, u256) {
+            var lengths: [usize; 16] = [0; 16]
+            for i in 0 .. 16 {
+                lengths[i] = clues[i] as usize
+            }
+            let result = solve_line(
+                width: width as usize,
+                clues: lengths,
+                clue_count: clue_count as usize,
+                filled: filled as usize,
+                empty: empty as usize,
+            )
+            (result.ways as u256, result.always_filled as u256, result.ever_filled as u256)
+        }
+    }
+}
